@@ -1,63 +1,42 @@
 import React, { useState } from "react";
-
 import "./Modal.css";
 
-export const Modal = ({ closeModal, onSubmit, defaultValue }) => {
-  const [formState, setFormState] = useState(
-    defaultValue || {
-      Serial: "",
-      CompanyName: "",
-      City: "",
-      Country: "",
-      Sector: "",
-      ContactPerson: "",
-      EmailId: "",
-      ContactNumber: "",
-      ServicePitched: "",
-      ExpectedRevenue: "",
-      ExpectedClouserDate: "",
-      Lead: "",
-      Action: "",
-    }
-  );
+export const Modal = ({ closeModal, onSubmit, defaultValue, columns }) => {
+  const [formState, setFormState] = useState(() => {
+    return columns.reduce((acc, column) => {
+      if (column !== "Action") {
+        acc[column] = defaultValue?.[column] || "";
+      }
+      return acc;
+    }, {});
+  });
   const [errors, setErrors] = useState("");
 
   const validateForm = () => {
-    if (
-      formState.CompanyName &&
-      formState.City &&
-      formState.Country &&
-      formState.Sector &&
-      formState.ContactPerson &&
-      formState.EmailId &&
-      formState.ContactNumber
-    ) {
-      setErrors("");
-      return true;
-    } else {
-      let errorFields = [];
-      for (const [key, value] of Object.entries(formState)) {
-        if (!value) {
-          errorFields.push(key);
-        }
-      }
-      setErrors(errorFields.join(", "));
+    const requiredColumn = columns.find(column => column !== "S.No" && column !== "Action");
+    if (!formState[requiredColumn]) {
+      setErrors(`Please fill in the ${requiredColumn} field.`);
       return false;
     }
+    setErrors("");
+    return true;
   };
 
   const handleChange = (e) => {
-    setFormState({ ...formState, [e.target.name]: e.target.value });
+    setFormState(prevState => ({
+      ...prevState,
+      [e.target.name]: e.target.value
+    }));
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-
-    if (!validateForm()) return;
-
-    onSubmit(formState);
-
-    closeModal();
+    if (validateForm()) {
+      // Remove "Action" from formState before submitting
+      const { Action, ...formStateWithoutAction } = formState;
+      onSubmit(formStateWithoutAction);
+      closeModal();
+    }
   };
 
   return (
@@ -71,95 +50,57 @@ export const Modal = ({ closeModal, onSubmit, defaultValue }) => {
         <button className="close-btn" onClick={closeModal}>
           Close
         </button>
-        <form>
-          <h1 className="mb-20">New Entry</h1>
-          <div className="form-group">
-            <label htmlFor="CompanyName">CompanyName</label>
-            <input
-              name="CompanyName"
-              onChange={handleChange}
-              value={formState.CompanyName}
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="City">City</label>
-            <input name="City" onChange={handleChange} value={formState.City} />
-          </div>
-          <div className="form-group">
-            <label htmlFor="Country">Country</label>
-            <input
-              name="Country"
-              onChange={handleChange}
-              value={formState.Country}
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="Sector">Sector</label>
-            <input
-              name="Sector"
-              onChange={handleChange}
-              value={formState.Sector}
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="ContactPerson">ContactPerson</label>
-            <input
-              name="ContactPerson"
-              onChange={handleChange}
-              value={formState.ContactPerson}
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="EmailId">EmailId</label>
-            <input
-              name="EmailId"
-              onChange={handleChange}
-              value={formState.EmailId}
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="ContactNumber">ContactNumber</label>
-            <input
-              name="ContactNumber"
-              onChange={handleChange}
-              value={formState.ContactNumber}
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="ServicePitched">ServicePitched</label>
-            <input
-              name="ServicePitched"
-              onChange={handleChange}
-              value={formState.ServicePitched}
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="ExpectedRevenue">ExpectedRevenue</label>
-            <input
-              name="ExpectedRevenue"
-              onChange={handleChange}
-              value={formState.ExpectedRevenue}
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="ExpectedClosureDate">ExpectedClosureDate</label>
-            <input
-              type="date"
-              name="ExpectedClosureDate"
-              onChange={handleChange}
-              value={formState.ExpectedClosureDate}
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="Lead">Lead</label>
-            <select name="Lead" onChange={handleChange} value={formState.Lead}>
-              <option value="">Select</option>
-              <option value="yes">Yes</option>
-              <option value="no">No</option>
-            </select>
-          </div>
-          {errors && <div className="error">{`Please include: ${errors}`}</div>}
-          <button type="submit" className="btn" onClick={handleSubmit}>
+        <form onSubmit={handleSubmit}>
+          <h1 className="mb-3">New Entry</h1>
+          {columns.map((column, index) => {
+            if (column !== "S.No" && column !== "Action") {
+              const isRequired = index === columns.findIndex(col => col !== "S.No" && col !== "Action");
+              return (
+                <div className="form-group" key={column}>
+                  <label htmlFor={column}>
+                    {column}{isRequired && " *"}
+                  </label>
+                  {column === "Lead" ? (
+                    <select
+                      name={column}
+                      onChange={handleChange}
+                      value={formState[column] || ""}
+                      required={isRequired}
+                    >
+                      <option value="">Select</option>
+                      <option value="yes">Yes</option>
+                      <option value="no">No</option>
+                    </select>
+                  ) : column.toLowerCase().includes("date") ? (
+                    <input
+                      type="date"
+                      name={column}
+                      onChange={handleChange}
+                      value={formState[column] || ""}
+                      required={isRequired}
+                    />
+                  ) : (
+                    <input
+                      name={column}
+                      onChange={handleChange}
+                      value={formState[column] || ""}
+                      required={isRequired}
+                    />
+                  )}
+                </div>
+              );
+            }
+            return null;
+          })}
+          {errors && <div className="error">{errors}</div>}
+          <button type="submit" className="btn bg-info mt-3" style={{
+            color: 'white',
+            fontSize: '20px',
+            fontWeight: 'bold',
+            width: '120px',
+            marginLeft: '200px',
+            borderRadius: '25px'
+          }}>
             Submit
           </button>
         </form>

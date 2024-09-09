@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import Dashboard from "../Dashboard";
 import Navbar from "../Navbar";
 import Sidebar from "../Sidebar";
@@ -10,45 +10,68 @@ function App() {
   const [modalOpen, setModalOpen] = useState(false);
   const [data, setData] = useState([]);
   const [dataToEdit, setDataToEdit] = useState(null);
+  const [fileName, setFileName] = useState("");
+  const [columns, setColumns] = useState([]);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await fetch("/AmanSheet.xlsx");
-        const blob = await response.blob();
-        const reader = new FileReader();
-
-        reader.onload = (e) => {
-          const workbook = XLSX.read(e.target.result, { type: "binary" });
-          const sheetName = workbook.SheetNames[0];
-          const sheet = workbook.Sheets[sheetName];
-          const jsonData = XLSX.utils.sheet_to_json(sheet, {
-            header: 1,
-            blankrows: false,
-          });
-
-          const headers = jsonData[0];
-          const rows = jsonData.slice(1);
-          const transformedData = rows.map((row) => {
-            const obj = {};
-            headers.forEach((header, index) => {
-              obj[header] = row[index];
-            });
-            return obj;
-          });
-          setData(transformedData);
-          console.log(data);
-        };
-
-        reader.readAsBinaryString(blob);
-      } catch (error) {
-        console.error("Error reading the file:", error);
+    if (data.length > 0) {
+      let dataColumns = Object.keys(data[0]);
+      
+      // Check if "S.No" is already present
+      const hasSerialNumber = dataColumns.includes("S.No");
+      
+      // If "S.No" is not present, add it at the beginning
+      if (!hasSerialNumber) {
+        dataColumns = ["S.No", ...dataColumns];
       }
-    };
+      
+      // Ensure "Action" is always at the end
+      dataColumns = dataColumns.filter(col => col !== "Action");
+      dataColumns.push("Action");
+      
+      setColumns(dataColumns);
+      
+      // Update data to include S.No if it's not present
+      if (!hasSerialNumber) {
+        const updatedData = data.map((item, index) => ({
+          "S.No": index + 1,
+          ...item
+        }));
+        setData(updatedData);
+      }
+    }
+  }, [data]);
 
-    fetchData();
-  }, []);
-  
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      setFileName(file.name);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const workbook = XLSX.read(e.target.result, { type: "binary" });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(sheet, {
+          header: 1,
+          blankrows: false,
+        });
+        const headers = jsonData[0];
+        const rows = jsonData.slice(1);
+        const transformedData = rows.map((row, index) => {
+          const obj = {};
+          headers.forEach((header, idx) => {
+            obj[header] = row[idx];
+          });
+          if (!headers.includes("S.No")) {
+            obj["S.No"] = index + 1;
+          }
+          return obj;
+        });
+        setData(transformedData);
+      };
+      reader.readAsBinaryString(file);
+    }
+  };
 
   const handleDeleteData = (targetIndex) => {
     setData(data.filter((_, idx) => idx !== targetIndex));
@@ -59,42 +82,32 @@ function App() {
     setModalOpen(true);
   };
 
+    const openModal = (idx) => {
+    setDataToEdit(idx);
+    setModalOpen(true);
+  };
   const handleSubmit = async (newData) => {
     try {
       const updatedData = [...data];
       if (dataToEdit !== null) {
         updatedData[dataToEdit] = newData;
       } else {
+        newData["S.No"] = updatedData.length + 1;
         updatedData.push(newData);
       }
-
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(updatedData);
-      XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
-      const excelBuffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
-
-      const formData = new FormData();
-      formData.append("file", new Blob([excelBuffer]), "AmanSheet.xlsx");
-      await fetch("/updateAmanSheet", {
-        method: "POST",
-        body: formData,
-      });
-
       setData(updatedData);
+      setModalOpen(false);
+      setDataToEdit(null);
     } catch (error) {
-      console.error("Error updating the file:", error);
+      console.error("Error updating the data:", error);
     }
   };
-  
+
   const exportToExcel = () => {
-    // Create a new workbook
     const wb = XLSX.utils.book_new();
-    // Create a new worksheet
     const ws = XLSX.utils.json_to_sheet(data);
-    // Add the worksheet to the workbook
     XLSX.utils.book_append_sheet(wb, ws, "Form Data");
-    // Export the workbook to a file
-    XLSX.writeFile(wb, "form_data.xlsx");
+    XLSX.writeFile(wb, fileName || "exported_data.xlsx");
   };
 
   return (
@@ -105,17 +118,15 @@ function App() {
           <Sidebar />
           <Dashboard
             data={data}
+            setData={setData}
             deleteData={handleDeleteData}
-            editData={handleEditData}
+            editData={openModal}
+            exportToExcel={exportToExcel}
+            handleFileUpload={handleFileUpload}
+            fileName={fileName}
+            columns={columns}
+            openModal={openModal}
           />
-          {/* <div>
-            <button onClick={() => setModalOpen(true)} className="btn">
-              Add
-            </button>
-            <button className="btn" onClick={exportToExcel}>
-              Update
-            </button>
-          </div> */}
           {modalOpen && (
             <Modal
               closeModal={() => {
@@ -124,6 +135,7 @@ function App() {
               }}
               onSubmit={handleSubmit}
               defaultValue={dataToEdit !== null ? data[dataToEdit] : null}
+              columns={columns.filter(col => col !== "S.No" && col !== "Action")}
             />
           )}
         </div>
@@ -131,5 +143,6 @@ function App() {
     </div>
   );
 }
+
 
 export default App;

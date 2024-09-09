@@ -7,7 +7,7 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 
 // MongoDB connection string
-const mongoURI = 'mongodb://localhost:27017/';
+const mongoURI = 'mongodb://localhost:27017';
 
 const app = express();
 
@@ -16,7 +16,7 @@ app.use(bodyParser.json());
 app.use(cors());
 
 // Connect to MongoDB
-mongoose.connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true })
+mongoose.connect(mongoURI, {})
   .then(() => console.log('MongoDB connected'))
   .catch(err => console.log(err));
 
@@ -24,8 +24,42 @@ mongoose.connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true })
 const UserSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
   email: { type: String, required: true, unique: true },
-  password: { type: String, required: true }
+  password: { type: String, required: true },
+  contact: { type: String, required: false },
+  role: { type: String, required: false },
+  emailVerified: { type: Boolean, required: false },
+  MobileVerified: { type: Boolean, required: false }
 });
+
+const ColumnSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  type: { type: String, required: true, enum: ['string', 'number', 'boolean', 'date'] }
+}, { _id: false });
+
+const CellSchema = new mongoose.Schema({
+  columnId: { type: mongoose.Schema.Types.ObjectId, required: true },
+  value: { type: mongoose.Schema.Types.Mixed, required: true }
+}, { _id: false });
+
+const RowSchema = new mongoose.Schema({
+  cells: [CellSchema]
+}, { _id: false });
+
+const TableSchema = new mongoose.Schema({
+  columns: [ColumnSchema],
+  rows: [RowSchema]
+});
+
+const RecordSchema = new mongoose.Schema({
+  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  name: { type: String, required: true },
+  description: { type: String },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+  table: TableSchema
+});
+
+const Record = mongoose.model('Record', RecordSchema);
 
 const User = mongoose.model('User', UserSchema);
 

@@ -13,6 +13,7 @@ export const Navbar = () => {
         </button>
         <a
           className="navbar-brand"
+          style={{marginLeft: "32px"}}
           href="#"
           title="Free Bootstrap 4 Admin Template"
         >

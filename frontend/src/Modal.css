@@ -27,11 +27,6 @@
   
 }
 
-.modal .btn {
-  display: block;
-  margin: auto;
-}
-
 .form-group {
   display: flex;
   flex-direction: column;
@@ -60,8 +55,6 @@
   margin-bottom: 1rem;
 }
 .close-btn{
-  width: 80px;
-  height: 30px;
   background-color: #df4759;
   border-style: none;
   color: black;
