@@ -1,8 +1,6 @@
 import React, { useState } from "react";
 import "./LoginRegister.css";
-import { FaUser } from "react-icons/fa";
-import { FaLock } from "react-icons/fa";
-import { FaEnvelope } from "react-icons/fa";
+import { FaUser, FaLock, FaEnvelope, FaPhone, FaUserTag } from "react-icons/fa";
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
@@ -13,6 +11,8 @@ export default function LoginRegister() {
   const [registerUsername, setRegisterUsername] = useState('');
   const [registerEmail, setRegisterEmail] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
+  const [registerContact, setRegisterContact] = useState('');
+  const [registerRole, setRegisterRole] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [registerError, setRegisterError] = useState('');
@@ -37,9 +37,11 @@ export default function LoginRegister() {
       
       if (res.data.token) {
         localStorage.setItem('token', res.data.token);
+        localStorage.setItem('userId', res.data.userId);
         localStorage.setItem('username', res.data.username);
         setIsLoggedIn(true);
         setLoginError('');
+        navigate(`/profile/${res.data.userId}`);
       }
     } catch (err) { 
       setLoginError('Invalid username or password');
@@ -49,29 +51,40 @@ export default function LoginRegister() {
   const handleRegister = async (e) => {
     e.preventDefault();
 
+    if (!registerUsername || !registerEmail || !registerPassword || !registerContact || !registerRole) {
+      setRegisterError('All fields are required');
+      return;
+    }
+
     try {
       await axios.post('http://localhost:5000/register', {
         username: registerUsername,
         email: registerEmail,
-        password: registerPassword
+        password: registerPassword,
+        contact: registerContact,
+        role: registerRole
       });
       
       setAction('');
       setRegisterUsername('');
       setRegisterEmail('');
       setRegisterPassword('');
+      setRegisterContact('');
+      setRegisterRole('');
       setRegisterError('');
+      // Optionally, show a success message or automatically switch to login
     } catch (err) {
-      setRegisterError('User already exists or server error');
+      setRegisterError(err.response?.data?.msg || 'Registration failed');
     }
   };
 
   if (isLoggedIn) {
     navigate('/profile');
   }
+  console.log(localStorage.getItem('userId'));
 
   return (
-    <div className={`wrapper ${action}`}>
+    <div className={`wrapper ${action}`} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '75vh', marginLeft: '790px',marginTop: '150px'}}>
       <div className="form-box login">
         <form onSubmit={handleLogin}>
           <h1>Login</h1>
@@ -143,6 +156,26 @@ export default function LoginRegister() {
               required
             />
             <FaLock className="icon" />
+          </div>
+          <div className="input-box">
+            <input
+              type="tel"
+              placeholder="Contact"
+              value={registerContact}
+              onChange={(e) => setRegisterContact(e.target.value)}
+              required
+            />
+            <FaPhone className="icon" />
+          </div>
+          <div className="input-box">
+            <input
+              type="text"
+              placeholder="Role"
+              value={registerRole}
+              onChange={(e) => setRegisterRole(e.target.value)}
+              required
+            />
+            <FaUserTag className="icon" />
           </div>
           <div className="remember-forgot">
             <label>

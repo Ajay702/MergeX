@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { useParams, useLocation } from "react-router-dom";
+import axios from "axios";
 import Dashboard from "../Dashboard";
 import Navbar from "../Navbar";
 import Sidebar from "../Sidebar";
@@ -7,47 +9,59 @@ import { Modal } from "../Modal";
 import "bootstrap/dist/css/bootstrap.min.css";
 
 function App() {
+  const { userId, recordId } = useParams();
+  const location = useLocation();
   const [modalOpen, setModalOpen] = useState(false);
   const [data, setData] = useState([]);
   const [dataToEdit, setDataToEdit] = useState(null);
   const [fileName, setFileName] = useState("");
   const [columns, setColumns] = useState([]);
+  const [userData, setUserData] = useState(null);
+  const [recordData, setRecordData] = useState(null);
 
   useEffect(() => {
-    if (data.length > 0) {
-      let dataColumns = Object.keys(data[0]);
-      
-      // Check if "S.No" is already present
-      const hasSerialNumber = dataColumns.includes("S.No");
-      
-      // If "S.No" is not present, add it at the beginning
-      if (!hasSerialNumber) {
-        dataColumns = ["S.No", ...dataColumns];
+    const fetchUserData = async () => {
+      if (!userId) {
+        return;
       }
-      
-      // Ensure "Action" is always at the end
-      dataColumns = dataColumns.filter(col => col !== "Action");
-      dataColumns.push("Action");
-      
-      setColumns(dataColumns);
-      
-      // Update data to include S.No if it's not present
-      if (!hasSerialNumber) {
-        const updatedData = data.map((item, index) => ({
-          "S.No": index + 1,
-          ...item
-        }));
-        setData(updatedData);
+      try {
+        const response = await axios.get(`http://localhost:5000/user/${userId}`);
+        setUserData(response.data);
+      } catch (error) {
+        console.error("Error fetching user data:", error);
       }
-    }
-  }, [data]);
+    };
 
-  const handleFileUpload = (event) => {
+    fetchUserData();
+  }, [userId]);
+
+  useEffect(() => {
+    const fetchRecordData = async () => {
+      if (!userId || !recordId) {
+        return;
+      }
+      try {
+        const response = await axios.get(`http://localhost:5000/records/${userId}/${recordId}`);
+        setRecordData(response.data);
+        setData(response.data.rows || []);
+        setColumns(response.data.columns.map(col => col.name) || []);
+        setFileName(response.data.name || "");
+      } catch (error) {
+        console.error("Error fetching record data:", error);
+      }
+    };
+
+    if (location.pathname.includes('/records/')) {
+      fetchRecordData();
+    }
+  }, [userId, recordId, location]);
+
+  const handleFileUpload = async (event) => {
     const file = event.target.files[0];
     if (file) {
       setFileName(file.name);
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         const workbook = XLSX.read(e.target.result, { type: "binary" });
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
@@ -67,7 +81,27 @@ function App() {
           }
           return obj;
         });
-        setData(transformedData);
+
+        try {
+          // Update the backend
+          const response = await axios.put(`http://localhost:5000/records/${userId}/${recordId}`, {
+            name: file.name,
+            columns: headers.map(header => ({ name: header, type: 'string' })),
+            rows: transformedData
+          });
+
+          if (response.status === 200) {
+            // Update local state
+            setData(transformedData);
+            setColumns(['S.No', ...headers, 'Action']);
+            console.log("File uploaded successfully");
+          } else {
+            throw new Error("Failed to update record");
+          }
+        } catch (error) {
+          console.error("Error uploading file:", error);
+          alert("Failed to upload file. Please try again.");
+        }
       };
       reader.readAsBinaryString(file);
     }
@@ -77,37 +111,137 @@ function App() {
     setData(data.filter((_, idx) => idx !== targetIndex));
   };
 
-  const handleEditData = (idx) => {
-    setDataToEdit(idx);
+  const openModal = (rowData) => {
+    console.log("Opening modal with data:", rowData);
+    setDataToEdit(rowData);
     setModalOpen(true);
   };
 
-    const openModal = (idx) => {
-    setDataToEdit(idx);
-    setModalOpen(true);
-  };
+  // const handleSubmit = async (newData) => {
+  //   try {
+  //     if (!userData || !userData._id) {
+  //       throw new Error('User data not available');
+  //     }
+
+  //     let url = 'http://localhost:5000/records';
+  //     let method = 'POST';
+
+  //     if (recordId) {
+  //       url = `http://localhost:5000/records/${userId}/${recordId}`;
+  //       method = 'PUT';
+  //     }
+
+  //     // Update the specific row
+  //     const updatedRows = data.map(row =>
+  //       row['S.No'] === newData['S.No'] ? newData : row
+  //     );
+
+  //     const recordData = {
+  //       userId: userData._id,
+  //       name: fileName || "New Record",
+  //       description: "Description of the record",
+  //       columns: columns.filter(col => col !== "S.No" && col !== "Action").map(col => ({ name: col, type: 'string' })),
+  //       rows: updatedRows
+  //     };
+
+  //     const response = await axios({
+  //       method: method,
+  //       url: url,
+  //       data: recordData,
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //       },
+  //     });
+
+  //     if (response.status !== 200 && response.status !== 201) {
+  //       throw new Error(response.data.msg || 'Failed to update record');
+  //     }
+
+  //     // Update the state with the new data
+  //     setData(updatedRows);
+  //     setModalOpen(false);
+  //     setDataToEdit(null);
+
+  //     console.log('Data saved successfully:', response.data);
+  //   } catch (error) {
+  //     console.error("Error updating the data:", error.message);
+  //   }
+  // };
+
   const handleSubmit = async (newData) => {
     try {
-      const updatedData = [...data];
-      if (dataToEdit !== null) {
-        updatedData[dataToEdit] = newData;
-      } else {
-        newData["S.No"] = updatedData.length + 1;
-        updatedData.push(newData);
+      if (!userData || !userData._id) {
+        throw new Error('User data not available');
       }
-      setData(updatedData);
+  
+      let url = 'http://localhost:5000/records';
+      let method = 'POST';
+  
+      if (recordId) {
+        url = `http://localhost:5000/records/${userId}/${recordId}`;
+        method = 'PUT';
+      }
+  
+      let updatedRows;
+      if (newData['S.No'] > data.length) {
+        updatedRows = [...data, newData];
+      } else {
+        updatedRows = data.map(row =>
+          row['S.No'] === newData['S.No'] ? newData : row
+        );
+      }
+  
+      updatedRows = updatedRows.map((row, index) => ({
+        ...row,
+        'S.No': index + 1
+      }));
+  
+      const recordData = {
+        userId: userData._id,
+        name: fileName || "New Record",
+        description: "Description of the record",
+        columns: columns.filter(col => col !== "S.No" && col !== "Action").map(col => ({ name: col, type: 'string' })),
+        rows: updatedRows
+      };
+  
+      const response = await axios({
+        method: method,
+        url: url,
+        data: recordData,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+  
+      if (response.status !== 200 && response.status !== 201) {
+        throw new Error(response.data.msg || 'Failed to update record');
+      }
+  
+      setData(updatedRows);
       setModalOpen(false);
       setDataToEdit(null);
+  
+      console.log('Data saved successfully:', response.data);
     } catch (error) {
-      console.error("Error updating the data:", error);
+      console.error("Error updating the data:", error.message);
     }
   };
 
-  const exportToExcel = () => {
-    const wb = XLSX.utils.book_new();
+  const exportToCSV = () => {
     const ws = XLSX.utils.json_to_sheet(data);
-    XLSX.utils.book_append_sheet(wb, ws, "Form Data");
-    XLSX.writeFile(wb, fileName || "exported_data.xlsx");
+    const csv = XLSX.utils.sheet_to_csv(ws);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+
+    const link = document.createElement("a");
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", `${fileName || "exported_data"}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   };
 
   return (
@@ -115,16 +249,11 @@ function App() {
       <Navbar />
       <div className="container-fluid" id="main">
         <div className="row row-offcanvas row-offcanvas-left">
-          <Sidebar />
+          <Sidebar userid={userId} />
           <Dashboard
             data={data}
             setData={setData}
-            deleteData={handleDeleteData}
-            editData={openModal}
-            exportToExcel={exportToExcel}
-            handleFileUpload={handleFileUpload}
-            fileName={fileName}
-            columns={columns}
+            exportToExcel={exportToCSV}
             openModal={openModal}
           />
           {modalOpen && (
@@ -134,7 +263,7 @@ function App() {
                 setDataToEdit(null);
               }}
               onSubmit={handleSubmit}
-              defaultValue={dataToEdit !== null ? data[dataToEdit] : null}
+              defaultValue={dataToEdit}
               columns={columns.filter(col => col !== "S.No" && col !== "Action")}
             />
           )}
@@ -143,6 +272,5 @@ function App() {
     </div>
   );
 }
-
 
 export default App;
