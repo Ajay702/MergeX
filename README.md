@@ -8,6 +8,7 @@ Open a new terminal.
 Navigate to the backend directory:
    ```sh
    cd backend
+   npm i
    node server.js
 ```
 
@@ -19,5 +20,6 @@ Open a new terminal.
 Navigate to the frontend directory:
    ```sh
    cd frontend
+   npm i
    npm run dev
 ```
